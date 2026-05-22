@@ -5,6 +5,7 @@ import {
   registerUser,
   loginUser,
   updateUserProfile,
+  deleteUser,
 } from "../controllers/userController.js";
 
 const router = express.Router();
@@ -12,15 +13,16 @@ const router = express.Router();
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.put("/profile", updateUserProfile);
+router.delete("/profile", deleteUser);
 router.get("/profile", async (req, res) => {
   try {
-    const { email } = req.query;
+    const email = String(req.query.email || "").trim().toLowerCase();
 
     if (!email) {
       return res.status(400).json({ message: "Email required" });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("-password");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });

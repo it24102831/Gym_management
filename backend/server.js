@@ -12,8 +12,11 @@ import mealLogRoutes from "./routes/mealLogRoutes.js";
 import adminMealLogRoutes from "./routes/adminMealLogRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import progressRoutes from "./routes/progressRoutes.js";
+import mealGeneratorRoutes from "./routes/mealGeneratorRoutes.js";
+import workoutGeneratorRoutes from "./routes/workoutGeneratorRoutes.js";
 import { getVideos } from "./controllers/videoController.js";
 import { getAllWorkouts, createWorkout, updateWorkout, deleteWorkout } from "./controllers/workoutController.js";
+import { initializeMealKnowledgeBase, initializeWorkoutKnowledgeBase } from "./services/ragService.js";
 
 dotenv.config();
 
@@ -35,6 +38,10 @@ app.delete("/api/workouts/:id", deleteWorkout);
 // ── Progress tracking routes ──────────────────────────────
 app.use("/api/progress", progressRoutes);
 
+// ── AI Generator routes ───────────────────────────────────
+app.use("/api/generators/meal", mealGeneratorRoutes);
+app.use("/api/generators/workout", workoutGeneratorRoutes);
+
 // ── Public video library route (read-only for mobile app) ─
 app.get("/api/videos", getVideos);
 
@@ -52,8 +59,19 @@ app.get("/", (req, res) => {
 });
 
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log("MongoDB Connected");
+    
+    // Initialize knowledge bases
+    try {
+      await initializeMealKnowledgeBase();
+      console.log("Meal knowledge base initialized");
+      await initializeWorkoutKnowledgeBase();
+      console.log("Workout knowledge base initialized");
+    } catch (error) {
+      console.warn("Warning: Could not initialize knowledge bases:", error.message);
+    }
+    
     const port = process.env.PORT || 5050;
     app.listen(port, () => console.log(`Server running on port ${port}`));
   })
