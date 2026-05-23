@@ -5,11 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 
 import { setUserEmail } from "../utils/session";
-import { BASE_URL } from "../config";
+import { loginUser } from "../services/userApi";
 
 export default function LoginScreen({ navigation }) {
 
@@ -35,43 +36,25 @@ export default function LoginScreen({ navigation }) {
   // LOGIN FUNCTION
   // =========================
   const handleLogin = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (!email || !password) {
-      alert("Please enter email and password");
+    if (!normalizedEmail || !password) {
+      Alert.alert("Missing details", "Please enter email and password.");
       return;
     }
 
     try {
-      const response = await fetch(
-        `${BASE_URL}/api/users/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            password,
-          }),
-        }
-      );
+      const data = await loginUser({
+        email: normalizedEmail,
+        password,
+      });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        alert(data.message || "Login failed");
-        return;
-      }
-
-      // 🔥 Store email globally
       setUserEmail(data.email);
-
-      // 🔥 Navigate to main app
       navigation.replace("Tabs");
 
     } catch (error) {
       console.log("Login error:", error);
-      alert("Network error. Check backend connection.");
+      Alert.alert("Login failed", error.message || "Check backend connection.");
     }
   };
 
@@ -102,6 +85,8 @@ export default function LoginScreen({ navigation }) {
           placeholderTextColor="#aaa"
           value={email}
           onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
         />
 
         <TextInput

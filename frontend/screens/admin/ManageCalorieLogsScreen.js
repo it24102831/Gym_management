@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from "react";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { api } from "../../services/adminApi";
 
@@ -35,7 +35,7 @@ export default function ManageCalorieLogsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();

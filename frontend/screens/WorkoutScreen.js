@@ -23,6 +23,54 @@ const RED    = "#FF3B30";
 
 const MUSCLE_GROUPS  = ["Chest", "Back", "Legs", "Arms", "Shoulders", "Biceps", "Triceps", "Core"];
 const QUICK_GROUPS   = ["Chest", "Back", "Legs", "Arms"];
+const AI_GOALS       = ["Strength", "Muscle Gain", "Fat Loss", "General Fitness"];
+const AI_EQUIPMENT   = ["Gym", "Home", "Bodyweight"];
+
+const WORKOUT_TEMPLATES = {
+  Strength: [
+    { exerciseName: "Barbell Squat", muscleGroup: "Legs", sets: [{ reps: 5, weight: 40 }, { reps: 5, weight: 45 }, { reps: 5, weight: 50 }] },
+    { exerciseName: "Bench Press", muscleGroup: "Chest", sets: [{ reps: 5, weight: 30 }, { reps: 5, weight: 35 }, { reps: 5, weight: 40 }] },
+    { exerciseName: "Deadlift", muscleGroup: "Back", sets: [{ reps: 5, weight: 50 }, { reps: 5, weight: 55 }, { reps: 5, weight: 60 }] },
+  ],
+  "Muscle Gain": [
+    { exerciseName: "Incline Dumbbell Press", muscleGroup: "Chest", sets: [{ reps: 10, weight: 16 }, { reps: 10, weight: 18 }, { reps: 8, weight: 20 }] },
+    { exerciseName: "Lat Pulldown", muscleGroup: "Back", sets: [{ reps: 12, weight: 35 }, { reps: 10, weight: 40 }, { reps: 10, weight: 45 }] },
+    { exerciseName: "Leg Press", muscleGroup: "Legs", sets: [{ reps: 12, weight: 80 }, { reps: 10, weight: 90 }, { reps: 10, weight: 100 }] },
+  ],
+  "Fat Loss": [
+    { exerciseName: "Kettlebell Swings", muscleGroup: "Core", sets: [{ reps: 20, weight: 12 }, { reps: 20, weight: 12 }, { reps: 20, weight: 12 }] },
+    { exerciseName: "Walking Lunges", muscleGroup: "Legs", sets: [{ reps: 16, weight: 0 }, { reps: 16, weight: 0 }, { reps: 16, weight: 0 }] },
+    { exerciseName: "Mountain Climbers", muscleGroup: "Core", sets: [{ reps: 30, weight: 0 }, { reps: 30, weight: 0 }, { reps: 30, weight: 0 }] },
+  ],
+  "General Fitness": [
+    { exerciseName: "Goblet Squat", muscleGroup: "Legs", sets: [{ reps: 12, weight: 16 }, { reps: 12, weight: 16 }, { reps: 12, weight: 18 }] },
+    { exerciseName: "Seated Row", muscleGroup: "Back", sets: [{ reps: 12, weight: 30 }, { reps: 12, weight: 35 }, { reps: 10, weight: 40 }] },
+    { exerciseName: "Shoulder Press", muscleGroup: "Shoulders", sets: [{ reps: 10, weight: 14 }, { reps: 10, weight: 16 }, { reps: 8, weight: 18 }] },
+  ],
+};
+
+const BODYWEIGHT_SWAPS = {
+  "Barbell Squat": "Tempo Squat",
+  "Bench Press": "Push Up",
+  Deadlift: "Hip Hinge",
+  "Incline Dumbbell Press": "Decline Push Up",
+  "Lat Pulldown": "Prone Y Raise",
+  "Leg Press": "Split Squat",
+  "Kettlebell Swings": "Squat Thrust",
+  "Walking Lunges": "Reverse Lunges",
+  "Goblet Squat": "Bodyweight Squat",
+  "Seated Row": "Towel Row",
+  "Shoulder Press": "Pike Push Up",
+};
+
+const HOME_SWAPS = {
+  "Barbell Squat": "Dumbbell Squat",
+  "Bench Press": "Floor Press",
+  Deadlift: "Dumbbell Romanian Deadlift",
+  "Lat Pulldown": "One Arm Row",
+  "Leg Press": "Bulgarian Split Squat",
+  "Seated Row": "Band Row",
+};
 
 const getTodayStr = () =>
   new Date().toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
@@ -43,9 +91,12 @@ const maxWeight = (workout) =>
   Math.max(...(workout.sets?.map((s) => s.weight || 0) || [0]));
 
 export default function WorkoutScreen() {
-  const [view, setView] = useState("home"); // home | history | progress | addWorkout | editWorkout
+  const [view, setView] = useState("home"); // home | history | progress | ai | addWorkout | editWorkout
   const [workouts, setWorkouts] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [aiGoal, setAiGoal] = useState("Muscle Gain");
+  const [aiEquipment, setAiEquipment] = useState("Gym");
+  const [aiDays, setAiDays] = useState("3");
 
   // form state
   const [exerciseName, setExerciseName] = useState("");
@@ -99,6 +150,16 @@ export default function WorkoutScreen() {
 
   const addSet  = () => setSets((p) => [...p, { reps: "", weight: "" }]);
   const updSet  = (i, f, v) => setSets((p) => p.map((s, idx) => (idx === i ? { ...s, [f]: v } : s)));
+
+  const openGeneratedWorkout = (item) => {
+    setSelected(null);
+    setExerciseName(item.exerciseName);
+    setMuscleGroup(item.muscleGroup);
+    setDuration(item.duration ? String(item.duration) : "45");
+    setNotes(item.notes || `Generated for ${aiGoal.toLowerCase()} with ${aiEquipment.toLowerCase()} equipment.`);
+    setSets(item.sets.map((set) => ({ reps: String(set.reps), weight: String(set.weight) })));
+    setView("addWorkout");
+  };
 
   // ── CRUD ────────────────────────────────────────────────
   const saveWorkout = async () => {
@@ -241,6 +302,22 @@ export default function WorkoutScreen() {
   const totalVolume = workouts.reduce(
     (n, w) => n + (w.sets?.reduce((s, x) => s + (x.reps || 0) * (x.weight || 0), 0) || 0), 0
   );
+
+  const generatedWorkouts = WORKOUT_TEMPLATES[aiGoal].map((workout, index) => {
+    const swapMap = aiEquipment === "Bodyweight" ? BODYWEIGHT_SWAPS : aiEquipment === "Home" ? HOME_SWAPS : {};
+    const exerciseName = swapMap[workout.exerciseName] || workout.exerciseName;
+    const dayCount = Math.max(Number(aiDays) || 3, 1);
+    return {
+      ...workout,
+      exerciseName,
+      duration: aiGoal === "Fat Loss" ? 30 : 45,
+      day: `Day ${(index % dayCount) + 1}`,
+      notes: `AI plan: ${aiGoal}, ${aiEquipment}, ${dayCount} days per week.`,
+      sets: aiEquipment === "Bodyweight"
+        ? workout.sets.map((set) => ({ ...set, weight: 0 }))
+        : workout.sets,
+    };
+  });
 
   // ── sub-views ───────────────────────────────────────────
 
@@ -412,6 +489,77 @@ export default function WorkoutScreen() {
     </ScrollView>
   );
 
+  const renderAiGenerator = () => (
+    <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
+      <Text style={s.pageTitle}>AI Workout Generator</Text>
+      <Text style={s.pageSubtitle}>Create a simple plan from your goal and equipment.</Text>
+
+      <View style={s.formCard}>
+        <Text style={s.formLabel}>Goal</Text>
+        <View style={s.muscleGrid}>
+          {AI_GOALS.map((goal) => (
+            <TouchableOpacity
+              key={goal}
+              style={[s.muscleBtn, aiGoal === goal && s.muscleBtnActive]}
+              onPress={() => setAiGoal(goal)}
+            >
+              <Text style={[s.muscleBtnText, aiGoal === goal && s.muscleBtnTextActive]}>{goal}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={s.formCard}>
+        <Text style={s.formLabel}>Equipment</Text>
+        <View style={s.aiPillRow}>
+          {AI_EQUIPMENT.map((equipment) => (
+            <TouchableOpacity
+              key={equipment}
+              style={[s.aiPill, aiEquipment === equipment && s.aiPillActive]}
+              onPress={() => setAiEquipment(equipment)}
+            >
+              <Text style={[s.aiPillText, aiEquipment === equipment && s.aiPillTextActive]}>{equipment}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={[s.formLabel, { marginTop: 14 }]}>Days per week</Text>
+        <TextInput
+          style={s.formInput}
+          placeholder="3"
+          placeholderTextColor={MUTED}
+          keyboardType="numeric"
+          value={aiDays}
+          onChangeText={setAiDays}
+        />
+      </View>
+
+      <Text style={s.sectionTitle}>Generated Plan</Text>
+      {generatedWorkouts.map((workout) => (
+        <View key={`${workout.day}-${workout.exerciseName}`} style={s.aiPlanCard}>
+          <View style={s.cardTopRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.aiDay}>{workout.day}</Text>
+              <Text style={s.cardExercise}>{workout.exerciseName}</Text>
+            </View>
+            <View style={s.muscleBadge}>
+              <Text style={s.muscleBadgeText}>{workout.muscleGroup}</Text>
+            </View>
+          </View>
+          {workout.sets.map((set, index) => (
+            <Text key={index} style={s.cardSetText}>
+              Set {index + 1}: {set.reps} reps / {set.weight} kg
+            </Text>
+          ))}
+          <TouchableOpacity style={s.usePlanBtn} onPress={() => openGeneratedWorkout(workout)}>
+            <Text style={s.usePlanText}>Use This Workout</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+      <View style={{ height: 100 }} />
+    </ScrollView>
+  );
+
   const renderAddWorkout = () => (
     <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
       <Text style={s.pageTitle}>Add Workout</Text>
@@ -567,6 +715,7 @@ export default function WorkoutScreen() {
           {view === "home"     && renderHome()}
           {view === "history"  && renderHistory()}
           {view === "progress" && renderProgress()}
+          {view === "ai"       && renderAiGenerator()}
 
           {view === "home" && (
             <TouchableOpacity style={s.fab} onPress={() => openAdd()}>
@@ -576,7 +725,7 @@ export default function WorkoutScreen() {
 
           <View style={s.bottomNav}>
             <NavTab label="Home"     active={view === "home"}     onPress={() => setView("home")}     icon="⌂" />
-            <NavTab label="Stats"    active={false}               onPress={() => {}}                  icon="≡" />
+            <NavTab label="AI"       active={view === "ai"}       onPress={() => setView("ai")}       icon="AI" />
             <NavTab label="History"  active={view === "history"}  onPress={() => setView("history")}  icon="◷" />
             <NavTab label="Progress" active={view === "progress"} onPress={() => setView("progress")} icon="↗" />
           </View>
@@ -707,6 +856,25 @@ const s = StyleSheet.create({
   exPillActive:     { backgroundColor: GREEN, borderColor: GREEN },
   exPillText:       { color: MUTED, fontSize: 13, fontWeight: "700" },
   exPillTextActive: { color: "#111" },
+
+  aiPillRow: { flexDirection: "row", gap: 8 },
+  aiPill: {
+    flex: 1, borderWidth: 1, borderColor: BORDER, borderRadius: 8,
+    paddingVertical: 12, alignItems: "center",
+  },
+  aiPillActive: { backgroundColor: GREEN, borderColor: GREEN },
+  aiPillText: { color: WHITE, fontSize: 13, fontWeight: "800" },
+  aiPillTextActive: { color: "#111" },
+  aiPlanCard: {
+    backgroundColor: CARD, borderRadius: 12, borderWidth: 1,
+    borderColor: BORDER, padding: 14, marginBottom: 12,
+  },
+  aiDay: { color: GREEN, fontSize: 12, fontWeight: "900", marginBottom: 4 },
+  usePlanBtn: {
+    backgroundColor: GREEN, borderRadius: 8, paddingVertical: 12,
+    alignItems: "center", marginTop: 12,
+  },
+  usePlanText: { color: "#111", fontSize: 13, fontWeight: "900" },
 
   weekBarRow:  { marginBottom: 12 },
   weekBarLabel:{ color: WHITE, fontSize: 13, fontWeight: "700", marginBottom: 4 },

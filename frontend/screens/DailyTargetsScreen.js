@@ -1,13 +1,14 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 
-import { setUserEmail } from "../utils/session";
-import { BASE_URL } from "../config";
+import { getUserEmail, setUserEmail } from "../utils/session";
+import { updateUserProfile } from "../services/userApi";
 
 export default function DailyTargetsScreen({ navigation, route }) {
 
@@ -18,67 +19,73 @@ export default function DailyTargetsScreen({ navigation, route }) {
     height,
     weight,
     activityLevel,
-  } = route.params;
+  } = route.params ?? {};
 
-  setUserEmail(email);
+  const activeEmail = email || getUserEmail();
+  const numericHeight = Number(height || 0);
+  const numericWeight = Number(weight || 0);
+  const selectedGoal = goal || "maintenance";
+  const selectedActivityLevel = activityLevel || "moderate";
+
+  useEffect(() => {
+    if (activeEmail) {
+      setUserEmail(activeEmail);
+    }
+  }, [activeEmail]);
 
 
   const age = 21; 
-  const BMR = 10 * weight + 6.25 * height - 5 * age + 5;
+  const BMR = 10 * numericWeight + 6.25 * numericHeight - 5 * age + 5;
 
   let activityMultiplier = 1.55;
 
-  if (activityLevel === "low") activityMultiplier = 1.2;
-  if (activityLevel === "moderate") activityMultiplier = 1.55;
-  if (activityLevel === "high") activityMultiplier = 1.9;
+  if (selectedActivityLevel === "low") activityMultiplier = 1.2;
+  if (selectedActivityLevel === "moderate") activityMultiplier = 1.55;
+  if (selectedActivityLevel === "high") activityMultiplier = 1.9;
 
   let calories = Math.round(BMR * activityMultiplier);
 
-  if (goal === "muscle") calories += 300;
-  if (goal === "fat") calories -= 300;
+  if (selectedGoal === "muscle") calories += 300;
+  if (selectedGoal === "fat") calories -= 300;
 
-  const protein = Math.round(weight * 2);
+  const protein = Math.round(numericWeight * 2);
 
 
   const handleSave = async () => {
+    if (!activeEmail) {
+      Alert.alert("Session missing", "Please login again before saving targets.");
+      navigation.replace("Login");
+      return;
+    }
+
+    if (!numericHeight || !numericWeight) {
+      Alert.alert("Missing measurements", "Please go back and enter valid height and weight.");
+      return;
+    }
+
     try {
-      const response = await fetch(`${BASE_URL}/api/users/profile?email=${email}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            goal,
-            targetWeight,
-            height,
-            weight,
-            activityLevel,
-            calories,
-            protein,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        alert(data.message);
-        return;
-      }
+      const data = await updateUserProfile({
+        email: activeEmail,
+        goal: selectedGoal,
+        targetWeight,
+        height: numericHeight,
+        weight: numericWeight,
+        activityLevel: selectedActivityLevel,
+        calories,
+        protein,
+      });
 
       console.log("Profile updated:", data);
-      console.log("EMAIL BEING PASSED:", email);
+      console.log("EMAIL BEING PASSED:", activeEmail);
 
       navigation.replace("Tabs", {
-  screen: "Dashboard",
-  params: { email },
-});
+        screen: "Dashboard",
+        params: { email: activeEmail },
+      });
 
     } catch (error) {
       console.log("Update error:", error);
-      alert("Failed to save profile");
+      Alert.alert("Failed to save profile", error.message || "Please try again.");
     }
   };
 
@@ -114,8 +121,8 @@ export default function DailyTargetsScreen({ navigation, route }) {
 
         <View style={styles.smallCard}>
           <Text style={styles.cardTitle}>Your Goal</Text>
-          <Text style={styles.cardBig}>{goal}</Text>
-          <Text style={styles.greenText}>{activityLevel}</Text>
+          <Text style={styles.cardBig}>{selectedGoal}</Text>
+          <Text style={styles.greenText}>{selectedActivityLevel}</Text>
         </View>
       </View>
 

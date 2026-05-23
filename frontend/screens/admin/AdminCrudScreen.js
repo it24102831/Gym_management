@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from "react";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 
 export default function AdminCrudScreen({ title, subtitle, service, fields, renderItem }) {
   const initialForm = fields.reduce((acc, field) => ({ ...acc, [field.name]: field.defaultValue || "" }), {});
@@ -32,7 +32,7 @@ export default function AdminCrudScreen({ title, subtitle, service, fields, rend
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [service]);
 
   useEffect(() => {
     loadItems();

@@ -47,15 +47,66 @@ const quickActions = [
   { key: "dashboard", label: "Home" },
   { key: "log", label: "Log Meal" },
   { key: "search", label: "Search" },
-  { key: "log", label: "Summary" },
+  { key: "ai", label: "AI Plan" },
 ];
 
 const toNumber = (value) => Number(value || 0);
 const round = (value) => Math.round(Number(value || 0));
 
+const MEAL_GOALS = ["Balanced", "High Protein", "Weight Loss", "Muscle Gain"];
+const DIET_TYPES = ["Any", "Vegetarian", "Local"];
+
+const MEAL_TEMPLATES = {
+  Balanced: [
+    { mealType: "Breakfast", foodName: "Greek Yogurt, Banana and Oats", calories: 410, protein: 28, carbs: 58, fats: 8 },
+    { mealType: "Lunch", foodName: "Chicken Curry with Brown Rice", calories: 560, protein: 38, carbs: 62, fats: 17 },
+    { mealType: "Dinner", foodName: "Salmon with Sweet Potato and Broccoli", calories: 520, protein: 34, carbs: 45, fats: 21 },
+  ],
+  "High Protein": [
+    { mealType: "Breakfast", foodName: "Whole Eggs and Whey Protein", calories: 420, protein: 43, carbs: 8, fats: 22 },
+    { mealType: "Lunch", foodName: "Grilled Chicken Breast and White Rice", calories: 540, protein: 52, carbs: 58, fats: 8 },
+    { mealType: "Dinner", foodName: "Tuna, Avocado and Broccoli Bowl", calories: 470, protein: 42, carbs: 18, fats: 24 },
+  ],
+  "Weight Loss": [
+    { mealType: "Breakfast", foodName: "Greek Yogurt with Apple", calories: 260, protein: 22, carbs: 34, fats: 3 },
+    { mealType: "Lunch", foodName: "Grilled Chicken and Broccoli Bowl", calories: 390, protein: 44, carbs: 22, fats: 10 },
+    { mealType: "Dinner", foodName: "Tuna Salad with Sweet Potato", calories: 410, protein: 36, carbs: 38, fats: 9 },
+  ],
+  "Muscle Gain": [
+    { mealType: "Breakfast", foodName: "Oatmeal, Whey and Banana", calories: 620, protein: 45, carbs: 92, fats: 10 },
+    { mealType: "Lunch", foodName: "Chicken Biryani with Egg", calories: 720, protein: 42, carbs: 78, fats: 24 },
+    { mealType: "Dinner", foodName: "Salmon, Rice and Avocado", calories: 690, protein: 38, carbs: 65, fats: 29 },
+  ],
+};
+
+const DIET_SWAPS = {
+  Vegetarian: {
+    "Chicken Curry with Brown Rice": "Egg Curry with Brown Rice",
+    "Salmon with Sweet Potato and Broccoli": "Greek Yogurt, Sweet Potato and Broccoli",
+    "Whole Eggs and Whey Protein": "Whole Eggs and Greek Yogurt",
+    "Grilled Chicken Breast and White Rice": "Eggs, Cashews and White Rice",
+    "Tuna, Avocado and Broccoli Bowl": "Avocado, Eggs and Broccoli Bowl",
+    "Grilled Chicken and Broccoli Bowl": "Egg and Broccoli Bowl",
+    "Tuna Salad with Sweet Potato": "Greek Yogurt Salad with Sweet Potato",
+    "Chicken Biryani with Egg": "Vegetable Biryani with Egg",
+    "Salmon, Rice and Avocado": "Egg, Rice and Avocado Bowl",
+  },
+  Local: {
+    "Greek Yogurt, Banana and Oats": "Hoppers Egg with Banana",
+    "Chicken Curry with Brown Rice": "Chicken Curry with White Rice",
+    "Salmon with Sweet Potato and Broccoli": "Tuna Curry with Sweet Potato",
+    "Grilled Chicken Breast and White Rice": "Chicken Curry with White Rice",
+    "Oatmeal, Whey and Banana": "Paratha, Whey and Banana",
+    "Chicken Biryani with Egg": "Chicken Biryani with Egg",
+  },
+};
+
 export default function CaloriesScreen({ initialView = "dashboard" }) {
   const [activeView, setActiveViewState] = useState(() => readPersistedView(initialView));
   const [form, setForm] = useState(emptyForm);
+  const [mealGoal, setMealGoal] = useState("Balanced");
+  const [dietType, setDietType] = useState("Any");
+  const [targetCalories, setTargetCalories] = useState("2200");
 
   const setActiveView = (view) => {
     persistView(view);
@@ -174,6 +225,22 @@ export default function CaloriesScreen({ initialView = "dashboard" }) {
   const progress = dailyStats?.progressPercentage || 0;
   const remaining = dailyStats?.remainingCalories ?? Math.max(goal - totals.calories, 0);
   const todayLabel = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const generatedMeals = useMemo(() => {
+    const plan = MEAL_TEMPLATES[mealGoal] || MEAL_TEMPLATES.Balanced;
+    const baseCalories = plan.reduce((sum, meal) => sum + meal.calories, 0);
+    const calorieTarget = Math.max(toNumber(targetCalories), 1);
+    const factor = calorieTarget / baseCalories;
+    const swaps = DIET_SWAPS[dietType] || {};
+
+    return plan.map((meal) => ({
+      ...meal,
+      foodName: swaps[meal.foodName] || meal.foodName,
+      calories: round(meal.calories * factor),
+      protein: round(meal.protein * factor),
+      carbs: round(meal.carbs * factor),
+      fats: round(meal.fats * factor),
+    }));
+  }, [dietType, mealGoal, targetCalories]);
 
   if (loading) {
     return (
@@ -217,6 +284,22 @@ export default function CaloriesScreen({ initialView = "dashboard" }) {
       );
     }
 
+    if (activeView === "ai") {
+      return (
+        <MealGeneratorView
+          mealGoal={mealGoal}
+          setMealGoal={setMealGoal}
+          dietType={dietType}
+          setDietType={setDietType}
+          targetCalories={targetCalories}
+          setTargetCalories={setTargetCalories}
+          generatedMeals={generatedMeals}
+          saveMeal={saveMeal}
+          saving={saving}
+        />
+      );
+    }
+
     return (
       <DashboardView
         totals={totals}
@@ -237,10 +320,10 @@ export default function CaloriesScreen({ initialView = "dashboard" }) {
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>
-              {activeView === "dashboard" ? "Good evening" : activeView === "search" ? "Nutrition Database" : `Today - ${todayLabel}`}
+              {activeView === "dashboard" ? "Good evening" : activeView === "search" ? "Nutrition Database" : activeView === "ai" ? "Generated Meal Plan" : `Today - ${todayLabel}`}
             </Text>
             <Text style={styles.title}>
-              {activeView === "dashboard" ? "Dashboard" : activeView === "search" ? "Search Food" : "Log Calories"}
+              {activeView === "dashboard" ? "Dashboard" : activeView === "search" ? "Search Food" : activeView === "ai" ? "AI Meal Generator" : "Log Calories"}
             </Text>
           </View>
           <TouchableOpacity style={styles.searchTopButton} onPress={() => setActiveView("search")}>
@@ -256,6 +339,7 @@ export default function CaloriesScreen({ initialView = "dashboard" }) {
         <NavButton label="Dashboard" active={activeView === "dashboard"} onPress={() => setActiveView("dashboard")} />
         <NavButton label="Log" active={activeView === "log"} onPress={() => setActiveView("log")} />
         <NavButton label="Search" active={activeView === "search"} onPress={() => setActiveView("search")} />
+        <NavButton label="AI" active={activeView === "ai"} onPress={() => setActiveView("ai")} />
       </View>
     </View>
   );
@@ -421,6 +505,116 @@ function SearchView({ query, setQuery, foods, fillMealForm, saveMeal, saving }) 
             disabled={saving}
           >
             <Text style={styles.addFoodText}>+ Add to Today's Log</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </>
+  );
+}
+
+function MealGeneratorView({
+  mealGoal,
+  setMealGoal,
+  dietType,
+  setDietType,
+  targetCalories,
+  setTargetCalories,
+  generatedMeals,
+  saveMeal,
+  saving,
+}) {
+  const planTotals = generatedMeals.reduce((acc, meal) => ({
+    calories: acc.calories + meal.calories,
+    protein: acc.protein + meal.protein,
+    carbs: acc.carbs + meal.carbs,
+    fats: acc.fats + meal.fats,
+  }), { calories: 0, protein: 0, carbs: 0, fats: 0 });
+
+  return (
+    <>
+      <View style={styles.panel}>
+        <Text style={styles.cardTitle}>Plan Settings</Text>
+        <Text style={styles.inputLabel}>Goal</Text>
+        <View style={styles.choiceGrid}>
+          {MEAL_GOALS.map((goal) => (
+            <TouchableOpacity
+              key={goal}
+              style={[styles.choiceButton, mealGoal === goal && styles.choiceButtonActive]}
+              onPress={() => setMealGoal(goal)}
+            >
+              <Text style={[styles.choiceText, mealGoal === goal && styles.choiceTextActive]}>{goal}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.inputLabel}>Diet Style</Text>
+        <View style={styles.segmented}>
+          {DIET_TYPES.map((type) => (
+            <TouchableOpacity
+              key={type}
+              style={[styles.segment, dietType === type && styles.segmentActive]}
+              onPress={() => setDietType(type)}
+            >
+              <Text style={[styles.segmentText, dietType === type && styles.segmentTextActive]}>{type}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.inputLabel}>Target Calories</Text>
+        <TextInput
+          style={styles.input}
+          keyboardType="numeric"
+          placeholder="2200"
+          placeholderTextColor="#555"
+          value={targetCalories}
+          onChangeText={setTargetCalories}
+        />
+      </View>
+
+      <View style={styles.totalCard}>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalCalories}>{round(planTotals.calories)}</Text>
+          <Text style={styles.muted}>kcal plan</Text>
+        </View>
+        <View style={styles.macroStrip}>
+          <Text style={styles.blueText}>P: {round(planTotals.protein)}g</Text>
+          <Text style={styles.orangeText}>C: {round(planTotals.carbs)}g</Text>
+          <Text style={styles.pinkText}>F: {round(planTotals.fats)}g</Text>
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>Generated Meals</Text>
+      {generatedMeals.map((meal) => (
+        <View key={`${meal.mealType}-${meal.foodName}`} style={styles.foodCard}>
+          <View style={styles.foodCardTop}>
+            <View style={styles.foodCardInfo}>
+              <Text style={styles.mealType}>{meal.mealType}</Text>
+              <Text style={styles.foodCardName}>{meal.foodName}</Text>
+              <Text style={styles.foodMacros}>
+                <Text style={styles.blueText}>P: {meal.protein}g</Text>
+                {"   "}
+                <Text style={styles.orangeText}>C: {meal.carbs}g</Text>
+                {"   "}
+                <Text style={styles.pinkText}>F: {meal.fats}g</Text>
+              </Text>
+            </View>
+            <View style={styles.foodCaloriesBox}>
+              <Text style={styles.foodCalories}>{meal.calories}</Text>
+              <Text style={styles.foodKcal}>kcal</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.addFoodButton, saving && styles.disabled]}
+            onPress={() => saveMeal({
+              foodName: meal.foodName,
+              calories: meal.calories,
+              protein: meal.protein,
+              carbs: meal.carbs,
+              fats: meal.fats,
+            })}
+            disabled={saving}
+          >
+            <Text style={styles.addFoodText}>+ Add Meal to Today's Log</Text>
           </TouchableOpacity>
         </View>
       ))}
@@ -596,7 +790,7 @@ function NavButton({ label, active, onPress }) {
     <TouchableOpacity style={styles.navItem} onPress={onPress}>
       <View style={[styles.navIcon, active && styles.navIconActive]}>
         <Text style={[styles.navIconText, active && styles.navIconTextActive]}>
-          {label === "Dashboard" ? "#" : label === "Log" ? "+" : label === "Search" ? "o" : ">"}
+          {label === "Dashboard" ? "#" : label === "Log" ? "+" : label === "Search" ? "o" : "AI"}
         </Text>
       </View>
       <Text style={[styles.navText, active && styles.navTextActive]}>{label}</Text>
@@ -841,6 +1035,34 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: "center",
   },
+  choiceGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  choiceButton: {
+    width: "48%",
+    borderWidth: 1,
+    borderColor: "#292929",
+    borderRadius: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 8,
+    alignItems: "center",
+  },
+  choiceButtonActive: {
+    backgroundColor: "#C7F000",
+    borderColor: "#C7F000",
+  },
+  choiceText: {
+    color: "#bbb",
+    fontSize: 12,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  choiceTextActive: {
+    color: "#111",
+  },
   totalCard: {
     backgroundColor: "#171717",
     borderRadius: 8,
@@ -978,6 +1200,13 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "900",
+  },
+  mealType: {
+    color: "#C7F000",
+    fontSize: 11,
+    fontWeight: "900",
+    marginBottom: 4,
+    textTransform: "uppercase",
   },
   foodMacros: {
     color: "#999",

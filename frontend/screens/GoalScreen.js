@@ -5,9 +5,13 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
+  Alert,
 } from "react-native";
 
+import { getUserEmail } from "../utils/session";
+
 export default function GoalScreen({ navigation, route }) {
+  const email = route?.params?.email || getUserEmail();
 
   const [selectedGoal, setSelectedGoal] = useState("muscle");
   const [targetWeight, setTargetWeight] = useState("");
@@ -38,15 +42,23 @@ export default function GoalScreen({ navigation, route }) {
   };
 
   const handleNext = () => {
-    if (!targetWeight) {
-      alert("Enter target weight");
+    const numericTargetWeight = Number(targetWeight);
+
+    if (!email) {
+      Alert.alert("Session missing", "Please login again before setting your goal.");
+      navigation.replace("Login");
+      return;
+    }
+
+    if (!numericTargetWeight || numericTargetWeight <= 0) {
+      Alert.alert("Invalid target", "Enter a valid target weight.");
       return;
     }
 
     navigation.navigate("Measurements", {
-      email: route.params.email,
+      email,
       goal: selectedGoal,
-      targetWeight: Number(targetWeight),
+      targetWeight: numericTargetWeight,
     });
   };
 

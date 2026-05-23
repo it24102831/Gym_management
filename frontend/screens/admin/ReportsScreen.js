@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from "react";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -7,6 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { api } from "../../services/adminApi";
 
@@ -15,7 +15,6 @@ export default function ReportsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
   const loadReports = useCallback(async () => {
     try {
       const [summary, usersOverTime, mealsCalories, mealLogs] = await Promise.all([
@@ -41,23 +40,6 @@ export default function ReportsScreen() {
       loadReports();
     }, [loadReports])
   );
-      try {
-        const [summary, usersOverTime, mealsCalories, mealLogs] = await Promise.all([
-          api.reports.getSummary(),
-          api.reports.getUsersOverTime(),
-          api.reports.getMealsCalories(),
-          api.mealLogs.getSummary(),
-        ]);
-        setData({ summary, usersOverTime, mealsCalories, mealLogs });
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadReports();
-  }, []);
 
   if (loading) {
     return (

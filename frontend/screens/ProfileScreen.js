@@ -6,15 +6,17 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  Alert,
 } from "react-native";
 
 import { clearUserEmail, getUserEmail } from "../utils/session";
-import { BASE_URL } from "../config";
+import { getUserProfile, updateUserProfile } from "../services/userApi";
 
 export default function ProfileScreen({ navigation }) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const email = getUserEmail();
 
@@ -29,26 +31,21 @@ export default function ProfileScreen({ navigation }) {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await fetch(
-          `${BASE_URL}/api/users/profile?email=${email}`
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          console.log("Profile fetch error:", data.message);
-          return;
-        }
-
+        const data = await getUserProfile(email);
         setUser(data);
 
       } catch (error) {
         console.log("Profile fetch error:", error);
+        Alert.alert("Profile error", error.message || "Could not load profile.");
+      } finally {
+        setLoading(false);
       }
     };
 
     if (email) {
       fetchUser();
+    } else {
+      setLoading(false);
     }
   }, [email]);
 
@@ -56,47 +53,47 @@ export default function ProfileScreen({ navigation }) {
   // SAVE UPDATE
   // =========================
   const handleSave = async () => {
+    if (!user?.email) {
+      Alert.alert("Profile error", "No user profile loaded.");
+      return;
+    }
+
     try {
-      const response = await fetch(
-        `${BASE_URL}/api/users/profile`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: user.email,
-            goal: user.goal,
-            targetWeight: user.targetWeight,
-            height: user.height,
-            weight: user.weight,
-            activityLevel: user.activityLevel,
-            calories: user.calories,
-            protein: user.protein,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        alert(data.message || "Update failed");
-        return;
-      }
+      const data = await updateUserProfile({
+        email: user.email,
+        goal: user.goal,
+        targetWeight: Number(user.targetWeight || 0),
+        height: Number(user.height || 0),
+        weight: Number(user.weight || 0),
+        activityLevel: user.activityLevel,
+        calories: Number(user.calories || 0),
+        protein: Number(user.protein || 0),
+      });
 
       setUser(data);
       setIsEditing(false);
 
     } catch (error) {
       console.log("Update error:", error);
-      alert("Network error");
+      Alert.alert("Update failed", error.message || "Network error");
     }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={{ color: "white" }}>Loading...</Text>
+      </View>
+    );
+  }
 
   if (!user) {
     return (
       <View style={styles.container}>
-        <Text style={{ color: "white" }}>Loading...</Text>
+        <Text style={{ color: "white", marginBottom: 16 }}>No user session found.</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Go to Login</Text>
+        </TouchableOpacity>
       </View>
     );
   }

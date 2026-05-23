@@ -5,8 +5,11 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
-import { BASE_URL } from "../config";
+
+import { setUserEmail } from "../utils/session";
+import { registerUser } from "../services/userApi";
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState("");
@@ -15,46 +18,39 @@ export default function RegisterScreen({ navigation }) {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleRegister = async () => {
-    if (!name || !email || !password || !confirmPassword) {
-      alert("Please fill all fields");
+    const normalizedName = name.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedName || !normalizedEmail || !password || !confirmPassword) {
+      Alert.alert("Missing details", "Please fill all fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert("Weak password", "Password must be at least 6 characters.");
       return;
     }
 
     if (password !== confirmPassword) {
-      alert("Passwords do not match");
+      Alert.alert("Password mismatch", "Passwords do not match.");
       return;
     }
 
     try {
-      const response = await fetch(
-        `${BASE_URL}/api/users/register`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name,
-            email,
-            password,
-          }),
-        }
-      );
+      const data = await registerUser({
+        name: normalizedName,
+        email: normalizedEmail,
+        password,
+      });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        alert(data.message);
-        return;
-      }
-
+      setUserEmail(data.email);
       navigation.navigate("Goal", {
         email: data.email,
       });
 
     } catch (error) {
       console.log(error);
-      alert("Registration failed");
+      Alert.alert("Registration failed", error.message || "Please try again.");
     }
   };
 
@@ -89,6 +85,8 @@ export default function RegisterScreen({ navigation }) {
         placeholderTextColor="#777"
         value={email}
         onChangeText={setEmail}
+        autoCapitalize="none"
+        keyboardType="email-address"
       />
 
       <Text style={styles.label}>Password</Text>
@@ -122,11 +120,7 @@ export default function RegisterScreen({ navigation }) {
           Already have an account?
         </Text>
         <TouchableOpacity
-          onPress={() =>
-            navigation.navigate("Goal", {
-              email: email,
-            })
-          }
+          onPress={() => navigation.navigate("Login")}
         >
           <Text style={styles.signIn}> Sign in</Text>
         </TouchableOpacity>

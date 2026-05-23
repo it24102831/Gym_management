@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:5050/api/admin';
+const API_URL = `${BASE_URL}/api/admin`;
 
 const getHeaders = async () => {
   const token = await AsyncStorage.getItem('adminToken');

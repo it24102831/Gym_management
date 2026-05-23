@@ -5,18 +5,30 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
+  Alert,
 } from "react-native";
 
+import { getUserEmail } from "../utils/session";
+
 export default function MeasurementsScreen({ navigation, route }) {
-  const { email, goal, targetWeight } = route.params ?? {};
+  const { email = getUserEmail(), goal, targetWeight } = route.params ?? {};
 
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
   const [activity, setActivity] = useState("moderate");
 
   const handleNext = () => {
-  if (!height || !weight) {
-    alert("Enter height and weight");
+  const numericHeight = Number(height);
+  const numericWeight = Number(weight);
+
+  if (!email) {
+    Alert.alert("Session missing", "Please login again before saving measurements.");
+    navigation.replace("Login");
+    return;
+  }
+
+  if (!numericHeight || !numericWeight || numericHeight <= 0 || numericWeight <= 0) {
+    Alert.alert("Invalid measurements", "Enter valid height and weight.");
     return;
   }
 
@@ -24,11 +36,11 @@ export default function MeasurementsScreen({ navigation, route }) {
     email,
     goal,
     targetWeight,
-    height: Number(height),
-    weight: Number(weight),
+    height: numericHeight,
+    weight: numericWeight,
     activityLevel: activity,
   });
-};;
+};
 
   return (
     <View style={styles.container}>
